@@ -1,0 +1,176 @@
+#!/bin/bash
+# >> Divide data sample and copy to the hosts
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+__version__ = 'Arcond 1.5 copy utils'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Sep. 2009. For details see doc and the ASC workbook'
+
+
+################ users settings ###################################
+
+# original location of files (i.e. on a file server)
+OriginalLocation="/data1/data7TeV/data10/"
+# your user name
+USER="chakanau"
+
+
+# define location on destination nodes
+# it will be /SetName/SetType/SetVersion/RUNNUMBER
+SetLocation="/data1"
+SetName="data10_7TeV/physics_MinBias.merge"
+SetType="AOD"
+SetVersion="f239_m427"
+
+
+# set it to "False" for actual copy
+# keep it to True if you want just to see what it's doing
+Debug=True
+
+
+################################# do not modify below #####################
+
+# copy files based on size-only
+# remove extraneous files from dest dirs
+# RSYNC_COMMAND="rsync -ptogve ssh --progress  --stats --delete --no-relative --size-only" 
+# the only difference from -a option: we do not want to preserve the time
+RSYNC_COMMAND="rsync -rlpgoD -e ssh  --progress  --stats --delete --no-relative --size-only" 
+
+################ do no modify ############################
+
+import os
+import re
+import time
+import sys
+from threading import Thread
+from arcondtools.arcutils  import *
+from arcondtools.initialize import *
+term = TerminalController()
+import hosts
+
+# make first collector if does not exist 
+dir="collector"
+ascComputers=[] # computers
+Nnodes=0        # number of nodes 
+if not os.path.exists(dir):
+    os.makedirs(dir)
+    # get list with hosts
+    ascComputers=hosts.getHosts()
+    Nnodes=len(ascComputers)
+
+
+# run command
+def runCMT(DEBUG, cmt):
+    if (DEBUG == False): os.system(cmt) 
+    if (DEBUG == True): print cmt 
+  
+ 
+# Create SetLocation/SetName/SetType/SetVersion
+cmt1="mkdir -p "+SetLocation+"/"+SetName+"/"+SetType+"/"+SetVersion 
+FinalDestination=SetLocation+"/"+SetName+"/"+SetType+"/"+SetVersion+"/" 
+
+
+
+
+# check the existing 
+oldsets=[]
+pcfill={}
+if os.path.exists(dir):
+  for  l  in os.listdir(dir):
+        l=l.strip()
+        if not l.endswith(".txt"):  continue
+        PCname=l.replace('.txt','.hep.anl.gov')
+        lines=[]
+        ifile = open (dir+"/"+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        pcfill[PCname]=len(lines)
+        for i in range(len(lines)):
+            xline=lines[i]
+            xline=xline.strip()
+            if xline.startswith("#"): continue
+            oldsets.append(xline)
+
+# find computer with smallest number of data
+# sort by value
+if (len(pcfill)>0):
+  from operator import itemgetter
+  pcfill=sorted(pcfill.items(), key=itemgetter(1))
+  for pc in pcfill: 
+       print "computers and inputs=",pc
+       ascComputers.append( pc[0] )
+  Nnodes=len(ascComputers)
+else:
+  ascComputers=hosts.getHosts()
+  Nnodes=len(ascComputers)
+
+
+print "Found " + str(len(oldsets))+ " old sets in dir:"+dir 
+print "The length of the old set=",len(oldsets) 
+
+
+if not os.path.exists(OriginalLocation):
+    print  "The directory="+OriginalLocation
+    print term.render('${RED}  -->does not exist. Exit${NORMAL}')
+    sys.exit(2)
+
+# this is a new set
+newset=os.listdir(OriginalLocation)
+print "The length of the new set is =",len(newset) 
+
+# find the difference
+data=list(set(newset) - set(oldsets))
+for line in data:
+    print "New set to copy: "+line
+    # runs=line.split(".")
+    # print runs[1]
+print "Number of new sets to copy is =", len(data)
+
+
+
+DataSplitted=split_seq(data,Nnodes)
+
+
+# loop over nodes. Create file list and rsync the data 
+if len(data)==0:
+    print term.render('${GREEN}  -->no need to do anything. Exit${NORMAL}')
+    sys.exit(2)
+
+for pc in range(Nnodes):
+           Data=DataSplitted[pc]
+           # prepare directories 
+           # print "PC=",pc, "  PC=",ascComputers[pc]
+           # now copy data
+           filename=dir+"/"+ascComputers[pc]+".txt"
+           datafile=open(filename, 'w')
+           for i in range(len(Data)):
+               file=Data[i]
+               datafile.write(file+"\n")
+           datafile.close()
+print "Files were generated in: "+dir 
+
+
+
+# loop over files and fetch directories to copy
+for  l  in os.listdir(dir):
+        l=l.strip()
+        if not l.endswith(".txt"):  continue
+        PCname=l.replace('.txt','.hep.anl.gov')
+        lines=[]
+        ifile = open (dir+"/"+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        for i in range(len(lines)):
+            xline=lines[i]
+            xline=xline.strip()
+            if xline.startswith("#"): continue
+            xline=OriginalLocation+xline
+            print "Copy "+xline+ " to "+PCname
+            runs=xline.split(".")
+            cmt="ssh "+USER+"@"+PCname+" "+"\'"+cmt1+"/"+runs[1]+"\'"
+            runCMT(Debug,cmt)
+	    cmt= RSYNC_COMMAND+" "+xline+"/* "+ USER+"@"+PCname+":"+FinalDestination+runs[1]+"/" 
+            runCMT(Debug,cmt)
+
+print time.ctime()

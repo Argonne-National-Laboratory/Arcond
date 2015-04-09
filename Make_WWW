@@ -1,0 +1,4 @@
+echo "Copy to the web"
+chmod 755 dist/*
+scp dist/arcond-0*  asc@atlaswww.hep.anl.gov:/home/asc/public_html/arcond/download/ 
+

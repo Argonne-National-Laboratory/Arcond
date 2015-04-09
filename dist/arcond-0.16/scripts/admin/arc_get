@@ -1,0 +1,165 @@
+#!/bin/bash
+
+
+# This code is licensed under the GNU General Public License (GPL) version 3 
+# see doc/ for details 
+# Copyright (c) 2008 by S.Chekanov (chakanau@hep.anl.gov). 
+# All rights reserved.
+
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+
+
+__version__ = 'Arcond 1.1 splitter'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Sep. 2008. For details see doc and the ASC workbook'
+
+
+# ****************************** do not modify below *****************
+import os,sys,re,shutil
+import getopt
+import glob
+import string
+import time,commands
+sys.path.append("../basic/")
+from initialize import *
+term = TerminalController()
+
+
+print "Warning: did you run? :  voms-proxy-init -voms atlas ? (for LCF sites)"
+print "Warning: did you run? :  grid-proxy-init -valid  96:00"
+
+
+DEBUG=False
+
+def usage():
+    print "USAGE:"
+    print "arc_get -i input.conf           # run ancord with a certain configuration file"
+    print "arc_get --input input.conf      # as above"
+    print "arc_get -h                      # show help"
+    print "arc_get --help                  # as above"
+ 
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hi:v", ["help", "input"])
+except getopt.GetoptError, err:
+        print 'Option is not recognized'
+        usage()
+        sys.exit(2)
+
+DATA='mc08.106070.PythiaZeeJet_Ptcut.recon.AOD.e352_s462_r541'
+NTOT=0
+iset=0
+for o, a in opts:
+        if o == "-v":
+            DEBUG = True
+        elif o in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif o in ("-i", "--input"):
+            input = a
+        else:
+            print 'Unhandeled option' 
+
+
+try:
+      print term.render('${CYAN} Input configuration='+input+' ${NORMAL}')
+      config = ConfReader(input)
+except IOError:                                                       # can't read file
+      print term.render('${RED} --- Error in reading configuration file:'+input+' ---- ${NORMAL}')
+      print ' --> cannot read configuration file: ', input 
+
+config.set('data', default='data')
+config.set('nsplits', post=int)
+config.set('get', post=int)
+
+
+try:
+       config.parse()                                                          # parse the file
+except ConfigMissingError, why:
+      print term.render('${RED} --- Error in reading configuration file: ---- ${NORMAL}')
+      print input, "Missing config", why
+except ConfigPostError, why:
+      print input, "Postprocessing Error", why
+
+DATA=config.data
+print "Search for data:",DATA
+
+NTOT=config.nsplits         # Number of events per job
+print "Data are splitted for :",NTOT, ' sets'
+
+iset=config.get
+print "The set ",iset,' will be coppied'
+
+if NTOT == 0:
+       print "No number of splits is defined"
+       sys.exit(1) 
+
+if iset > NTOT:
+       print "Error. You cannot copy this set (get>=nsplits)!" 
+       print "arc_get --help"
+       sys.exit(1)
+
+
+
+
+PWDdir="";
+f = os.popen("pwd", "r")
+for l in f.xreadlines():
+       l=l.strip()
+       PWDdir=l;
+       break;
+
+
+# Break a list into roughly equal sized pieces.
+def split_seq(seq, size):
+        newseq = []
+        splitsize = 1.0/size*len(seq)
+        for i in range(size):
+                newseq.append(seq[int(round(i*splitsize)):int(round((i+1)*splitsize))])
+        return newseq
+
+
+if (DEBUG == True ):
+       print "verbose mode is activated for debugging!"
+
+
+data=[]
+cmt  = 'dq2-ls -f '+DATA
+print cmt
+f = os.popen(cmt, "r")
+for l in f.xreadlines():
+       l=l.strip()
+       words = string.split(l,"\t")
+       if (len(words)>4):
+          file=words[1]
+          data.append(file) 
+       
+# split depending on how many CPUs available
+DataSplitted=split_seq(data,NTOT)
+
+sets=[] 
+s='dq2_get --files='
+sall=''
+for job in range(NTOT):
+         Data=DataSplitted[job];
+         ss=[]
+         print "Create set=",job
+         for i in range(len(Data)):
+                     sfile=Data[i]
+                     ss.append(sfile)
+         sets.append(ss);
+
+print 
+
+list=sets[iset]
+
+s='dq2_get --files='
+for i in range(len(list)):
+      if (i<len(list)-1):  s=s+list[i]+','
+      if (i==len(list)-1): s=s+list[i]
+
+print s 
+         

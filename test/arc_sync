@@ -1,0 +1,80 @@
+#!/bin/bash
+# >> Divide data sample and copy to the hosts
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+__version__ = 'Arcond 1.5 copy utils'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Sep. 2009. For details see doc and the ASC workbook'
+
+# original location of files (i.e. on a file server)
+OriginalLocation="/data/nfs/common" 
+# your user name
+USER="chakanau"
+
+
+# define location on destination nodes
+# it will be /SetName/SetType/SetVersion
+
+SetLocation="/data1" 
+SetName="MinBias.merge"
+SetType="AOD"
+SetVersion="f183_m298"
+
+# set it to "False" for actual copy
+# keep it to True if you want just to see what it's doing
+Debug=True 
+
+# copy files based on size-only
+# remove extraneous files from dest dirs
+RSYNC_COMMAND="rsync -ptogve ssh --progress  --stats --delete --size-only" 
+
+################ do no modify ############################
+
+import os
+import re
+import time
+import sys
+from threading import Thread
+from arcondtools.arcutils  import *
+import hosts
+
+
+# run command
+def runCMT(DEBUG, cmt):
+    if (DEBUG == False): os.system(cmt) 
+    if (DEBUG == True): print cmt 
+  
+ 
+# Create SetLocation/SetName/SetType/SetVersion
+cmt1="mkdir -p "+SetLocation+"/"+SetName+"/"+SetType+"/"+SetVersion 
+FinalDestination=SetLocation+"/"+SetName+"/"+SetType+"/"+SetVersion+"/" 
+
+# get list with hosts
+ascComputers=hosts.getHosts()
+# get number of nodes
+Nnodes=len(ascComputers)
+data=getFiles(OriginalLocation)
+DataSplitted=split_seq(data,Nnodes)
+
+# loop over nodes. Create file list and rsync the data 
+for pc in range(Nnodes):
+         Data=DataSplitted[pc]
+         # prepare directories 
+         print "PC=",pc, "  PC=",ascComputers[pc]
+         cmt="ssh "+USER+"@"+ascComputers[pc]+" "+"\'"+cmt1+"\'"
+         runCMT(Debug,cmt) 
+         # now copy data
+         filename="list_"+ascComputers[pc]+".txt" 
+         datafile=open(filename, 'w')
+         for i in range(len(Data)):
+             file=Data[i]
+             datafile.write(file+"\n")
+         datafile.close()
+         print "Data file written to: "+filename
+         cmt=RSYNC_COMMAND+" --files-from="+filename+" / "+USER+"@"+ascComputers[pc]+":"+FinalDestination 
+         print cmt
+         runCMT(Debug,cmt)  
+ 
+print time.ctime()
+

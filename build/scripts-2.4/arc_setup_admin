@@ -1,0 +1,19 @@
+#!/bin/bash
+# >> Setup Admin script. Initialize tools for administration 
+
+CUR_DIR=`pwd`
+echo 'Current directory='$CUR_DIR
+
+
+ARC_SOURCE=$ARCOND_SYS/etc/arcond/admin/
+cp $ARC_SOURCE/arc_command $CUR_DIR/
+cp $ARC_SOURCE/arc_hosts   $CUR_DIR/
+cp $ARC_SOURCE/arc_sync    $CUR_DIR/
+cp $ARC_SOURCE/hosts.py    $CUR_DIR/
+
+chmod 755 $CUR_DIR/*
+
+echo "--- admin tools are ready --- " 
+echo "--- edit your hosts in hosts.py first --- "
+
+exit 0;               

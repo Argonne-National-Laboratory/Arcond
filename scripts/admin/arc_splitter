@@ -1,0 +1,109 @@
+#!/bin/bash
+
+
+# This code is licensed under the GNU General Public License (GPL) version 3 
+# see doc/ for details 
+# Copyright (c) 2008 by S.Chekanov (chakanau@hep.anl.gov). 
+# All rights reserved.
+
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+
+
+__version__ = 'Arcond 1.1 splitter'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Sep. 2008. For details see doc and the ASC workbook'
+
+
+# ****************************** do not modify below *****************
+import os,sys,re,shutil
+import getopt
+import glob
+import time,commands
+
+
+DEBUG=False
+
+def usage():
+    print "USAGE:"  
+    print "arcond --help                  # as above"
+    print "arcond -v                      # run in verbose mode with detailed debugging information"
+    print "If arcond is executed without any argument, input configuration file \'arcond.f\' is assumed." 
+ 
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hi:v", ["help", "input"])
+except getopt.GetoptError, err:
+        print 'Option is not recognized'
+        usage()
+        sys.exit(2)
+
+
+for o, a in opts:
+        if o == "-v":
+            DEBUG = True
+        elif o in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif o in ("-i", "--input"):
+            input = a
+        else:
+            print 'Unhandeled option' 
+
+
+	   
+
+PWDdir="";
+f = os.popen("pwd", "r")
+for l in f.xreadlines():
+       l=l.strip()
+       PWDdir=l;
+       break;
+
+
+# Break a list into roughly equal sized pieces.
+def split_seq(seq, size):
+        newseq = []
+        splitsize = 1.0/size*len(seq)
+        for i in range(size):
+                newseq.append(seq[int(round(i*splitsize)):int(round((i+1)*splitsize))])
+        return newseq
+
+
+if (DEBUG == True ):
+       print "verbose mode is activated for debugging!"
+
+
+data=[]
+
+# directory with original root files 
+DIR="data"
+Nboxes=3
+
+cmt  = 'rm -rf data_*'
+print cmt
+os.system( cmt )
+
+
+# check file sizes 
+for  l  in os.listdir(DIR):
+        ff=DIR+'/'+l
+        if not l.endswith(".root"):  continue
+        data.append(ff)        
+
+# split depending on how many CPUs available
+DataSplitted=split_seq(data,Nboxes)
+# print "No of data=",data
+for job in range(Nboxes):
+         Data=DataSplitted[job];
+         CurrentRunDIR=DIR +"_" + str(job)  
+         os.mkdir ( CurrentRunDIR  )
+         print "Create dir="+CurrentRunDIR
+         for i in range(len(Data)):
+                        sfile=Data[i]
+                        cmt  = 'mv  '+sfile+ ' '+CurrentRunDIR+'/' 
+                        print cmt
+                        # os.system( cmt )
+

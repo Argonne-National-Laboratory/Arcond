@@ -1,0 +1,180 @@
+#!/bin/bash
+#    >> lists all files in a dataset. Usage: arc_ls <data set>. Examples: arc_ls /data1 
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+__version__ = 'Arcond 1.1'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Sep. 2008. List all files on all nodes. For details see doc and the ASC workbook'
+
+
+
+import os,sys,re,shutil
+import time, glob
+import getopt
+from arcondtools.initialize import *
+term = TerminalController()
+
+def usage():
+    print "USAGE:"
+    print "arc_ls    <path>     #  list all files on all nodes"
+    print "arc_ls -d <path>     #  list all directories"
+    print "arc_ls -h            #  show help"
+
+
+DataDir=""
+dir=0
+if len(sys.argv)==3:
+       DataDir=sys.argv[2]
+       dir=1
+elif  len(sys.argv)==2:
+       DataDir=sys.argv[1]
+       dir=0 
+       if sys.argv[1] == "-h" or sys.argv[1] == "--help": 
+         usage()
+         sys.exit(2)
+else:
+       print term.render('${RED}ERROR: Option is not recognized${NORMAL}')
+       usage()
+       sys.exit(2)
+
+   
+PWDdir="";
+f = os.popen("pwd", "r")
+for l in f.xreadlines():
+       l=l.strip()
+       PWDdir=l;
+       break;
+
+
+DEBUG=False
+input=ArcDBaseDIR
+
+print "-> DB path for ArCond is ",input
+print "-> Searching for files using the pattern : ",DataDir
+if dir  ==1:
+     print "-> Searching for directories using the pattern: ",DataDir
+
+
+# check arcond version
+if len(DataDir)>0 :
+
+
+ # make sure correct search string
+ if not DataDir.endswith("/"):
+                        DataDir=DataDir+'/'
+ 
+ partten=DataDir
+
+
+ N_PC=1
+ nodes=[]
+ jj=len("machine")
+ for  l  in os.listdir(PWDdir+"/patterns/"):
+        l=l.strip()
+        if not l.endswith(".cmd"):  continue
+        li=l.replace('schema.site.','')
+        N_PC=N_PC+1
+        lines=[]
+        ifile = open (PWDdir+"/patterns/"+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        for i in range(len(lines)):
+                  xline=lines[i]
+                  xline=xline.strip()
+                  if xline.startswith("#"): continue
+
+                  xline=xline.lower()
+                  if xline.startswith("requirements"):
+                     ii=xline.find("machine");
+                     if ii>0:
+                          xline=xline[ii+jj:len(xline)]
+                          ii1=xline.find("\"");
+                          xline=xline[ii1+1:len(xline)]
+
+                          ii2=xline.find("\"");
+                          xline=xline[0:ii2]
+                          xline=xline.strip()
+                          nodes.append(xline)
+                          if (DEBUG): print "   --> data file name:",xline
+
+
+
+ error=0
+ DBases1=[]
+ DBases2=[]
+# discover database
+ cmt="ls -t1 " + input
+ f = os.popen(cmt, "r")
+ kk=1 
+ for s in f.xreadlines():
+       s=s.strip()
+       if not s.endswith(".gz"):  continue
+
+       # check: does this box have database 
+       ignore=0 
+       sbox=""
+       for box in nodes:
+                if s.startswith(box): 
+                               ignore=1 
+                               sbox=box; 
+       if (ignore == 0): continue
+ 
+
+       if (kk>=N_PC): break;
+       kk=kk+1
+       DBases1.append(s)
+       DBases2.append(sbox)
+       if (DEBUG):
+                print s
+
+
+ if (kk != N_PC) :
+            print "Failed to find recent database!"
+
+
+ ifi=0
+ list=[]
+ for i in range (len(DBases1)):
+       db=DBases1[i]
+       ii=db.find(".")
+       sname=DBases2[i]
+       xbox=db[0:ii]
+       cmt = 'zgrep \"'+partten+"\" "+input+db
+       if (DEBUG):
+                print "scan: "+xbox 
+
+       f = os.popen(cmt, "r")
+       kk=1
+       print 
+       print "# --- "+xbox+" ---- Database="+db 
+       for s in f.xreadlines():
+         s=s.strip()
+         ss=s.lower()
+         # i1=ss.find('.pool.')
+         # i2=ss.find('.root')
+         # if i1 == -1 and i2 == -1 : continue 
+         kk=kk+1
+         ifi=kk
+         list.append(sname+":"+s)
+
+ if  dir == 0:
+   for file in list:
+        print file
+
+ if dir ==1:
+     dirlist=[]
+     for file in list:
+         ii=file.rfind("/")
+         dirlist.append(file[0:ii]) 
+         # print file[0:ii] 
+
+     # no duplicates
+     d = {}
+     for x in dirlist: d[x]=x
+     dirlist = d.values()
+     for line in dirlist:
+              print line  
+ 
+ 

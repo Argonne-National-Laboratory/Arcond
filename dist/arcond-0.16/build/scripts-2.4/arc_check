@@ -1,0 +1,154 @@
+#!/bin/bash
+# >> Check outputs 
+
+# This code is licensed under the GNU General Public License (GPL) version 3 
+# see doc/ for details 
+# Copyright (c) 2008 by S.Chekanov (chakanau@hep.anl.gov). 
+# All rights reserved.
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+
+__version__ = 'Arcond 1.0'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'For details see doc'
+
+
+import os,sys,re,shutil
+import glob
+import time
+from arcondtools.initialize import *
+term = TerminalController()
+
+
+print term.render('${GREEN}################ ARCOND v1.0 ####################${NORMAL}')
+print term.render('${GREEN}##${NORMAL}${CYAN}                 ANL ASC                     ${NORMAL}${GREEN}##${NORMAL}')   
+print term.render('${GREEN}#################################################${NORMAL}')
+
+
+cmt  = 'source /share/grid/app/asc_app/asc_rel/1.0/setup-script/set_asc.sh'
+os.system( cmt )
+outFile="Analysis.root"
+
+# check grid enviroment 
+vdt=os.environ.get('ROOTSYS')
+if (vdt == None) :  
+  print term.render('${RED} ROOTSYS variable  ${NORMAL}')
+  print term.render('${RED} Setup ROOT first ${NORMAL}')
+  sys.exit(1);
+
+# set true for debugging options
+DEBUG=False 
+
+
+
+PWDdir="";
+f = os.popen("pwd", "r")
+for l in f.xreadlines():
+       l=l.strip()
+       PWDdir=l;
+       break;
+
+# first clear all runs
+JobDir=PWDdir+"/Job/"
+DIR=PWDdir+"/DataCollector/"
+
+
+
+print term.render('${CYAN} --- Current directory ---- ${NORMAL}')
+print PWDdir;
+print term.render('${CYAN} --------------------- ---- ${NORMAL}')
+
+
+
+
+
+# initial processing:
+NTOT=0
+N_PC=0
+for  l  in os.listdir(DIR):
+        l=l.strip()
+        if not l.endswith(".conf"):  continue
+        lines=[]
+        N_PC=N_PC+1
+        ifile = open (DIR+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        for i in range(len(lines)):
+                  xline=lines[i]
+                  xline=xline.strip()
+                  if xline.startswith("#"):        continue
+                  ii=xline.find("CPU_N");
+                  if (ii>-1):
+                            xline=xline[ii+6:len(xline)]
+                            NCPU=int(xline);
+                            NTOT=NTOT+int(NCPU)
+                            continue
+
+
+
+
+print "---> Nr avilable PCs =",str(N_PC)
+print "---> Nr avilable CPUs =",str(NTOT)
+print "---> Nr of expected outputs =",str(NTOT)
+print "---> File name from each job =",outFile
+
+
+
+# make sure !
+whattodo = raw_input('Do you want to check output?(y/n)').lower()
+if 'n' in whattodo:
+                print term.render('${RED}ERROR: No action required!${NORMAL}')
+                sys.exit(1);
+
+
+output1=[]
+output2=[]
+missed=[]
+if 'y' in whattodo:
+  print term.render('${GREEN}---> Checking outputs accepted ${NORMAL}')
+  # check file sizes 
+  for  l1  in os.listdir(JobDir):
+      f1=JobDir+l1 
+      itake=True
+      if not os.path.isdir( f1 ):         itake=False 
+      if not l1.startswith("run"):        itake=False 
+       
+      # print f1
+      if itake:
+        out1="none"
+        out2="none"
+        for  l2  in os.listdir(f1):
+            f2=JobDir+l2
+            if not l2.endswith(outFile):  continue
+            if (DEBUG) : print "Output found=",l2
+            ff=f1+"/"+l2 
+            # print ff
+            ns=os.path.getsize(ff)
+            if (ns<4):
+                print term.render('${YELLOW} Input file='+ff+' is empty!  Will be excluded from run${NORMAL}')
+            out1=l1
+            out2=l2
+        if (out2 != "none"): 
+             output1.append(out1)
+             output2.append(out2)
+        else:
+            missed.append(l1)
+
+if (len(missed)>0) :
+      print term.render('${RED}ERROR: There are less output ROOT files than expected number of finisihed jobs!${NORMAL}')
+      print term.render('${RED}     --> Expected  Nr outputs='+str(NTOT)+'${NORMAL}')
+      print term.render('${RED}     --> Found     Nr outputs='+str(len(output2))+'${NORMAL}')
+      print term.render('${RED}     --> Not found Nr outputs='+str(len(missed))+'${NORMAL}')
+      for  l in missed:
+                   print '  --> Not found output='+JobDir+l
+      print 'SOLUTION: Are those jobs have finished? Check this with \'condor_q\' command' 
+      print '          If no running jobs found, check log files to find out why jobs have failed'    
+
+
+nn=0
+for  l  in  output2:
+         print  "Output is ready in ",output1[nn]+"/"+output2[nn] 
+         nn=nn+1
+

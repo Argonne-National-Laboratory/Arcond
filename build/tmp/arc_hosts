@@ -1,0 +1,66 @@
+#!/bin/bash
+# >> Get list of active hosts  
+
+# This code is licensed under the GNU General Public License (GPL) version 3 
+# see doc/ for details 
+# Copyright (c) 2008 by S.Chekanov (chakanau@hep.anl.gov). 
+# All rights reserved.
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+__version__ = 'Arcond 1.5 get hosts'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Jan. 2010. For details see doc and the ASC workbook'
+
+import os
+import re
+import time
+import sys
+from threading import Thread
+
+listAlivePC=[];
+
+class testit(Thread):
+   def __init__ (self,ip):
+      Thread.__init__(self)
+      self.ip = ip
+      self.status = -1
+   def run(self):
+      pingaling = os.popen("ping -q -c2 "+self.ip,"r")
+      while 1:
+        line = pingaling.readline()
+        if not line: break
+        igot = re.findall(testit.lifeline,line)
+        if igot:
+           self.status = int(igot[0])
+
+testit.lifeline = re.compile(r"(\d) received")
+report = ("No response","Partial Response","Alive","unknown host")
+
+print time.ctime()
+
+pinglist = []
+
+import hosts 
+ascComputers=hosts.getHosts()
+
+ 
+for host in ascComputers:
+   current = testit(host)
+   pinglist.append(current)
+   current.start()
+
+for pingle in pinglist:
+   pingle.join()
+   print "Status from ",pingle.ip,"is",report[pingle.status]
+   if report[pingle.status] == "Alive":
+     listAlivePC.append(pingle.ip);
+    
+print time.ctime()
+
+print ""
+print "-- Computers alive: "
+for i in listAlivePC:
+      print i
+

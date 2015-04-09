@@ -1,0 +1,185 @@
+#!/bin/bash
+#    >> Copy and rename all output files located in Job/*/* 
+
+# This code is licensed under the GNU General Public License (GPL) version 3 
+# see doc/ for details 
+# Copyright (c) 2008 by S.Chekanov (chakanau@hep.anl.gov). 
+# All rights reserved.
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+__version__ = 'Arcond 1.5'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'For details see doc'
+
+import os,sys,re,shutil
+import glob
+import time
+from arcondtools.initialize import *
+term = TerminalController()
+
+
+print term.render('${GREEN}################# ArCond-'+ARC_VERSION+' ####################${NORMAL}')
+print term.render('${GREEN}##${NORMAL}${CYAN}                 ANL ASC                     ${NORMAL}${GREEN}##${NORMAL}')
+print term.render('${GREEN}#################################################${NORMAL}')
+
+
+cmtASC  = 'source /share/grid/app/asc_app/asc_rel/1.0/setup-script/set_asc.sh'
+outFile="Analysis.root"
+
+
+# set true for debugging options
+DEBUG=False 
+
+PWDdir="";
+f = os.popen("pwd", "r")
+for l in f.xreadlines():
+       l=l.strip()
+       PWDdir=l;
+       break;
+
+# first clear all runs
+JobDir=PWDdir+"/Job/"
+DIR=PWDdir+"/DataCollector/"
+
+
+def usage():
+    print "USAGE:"
+    print "arc_cp -i /dir/name        # copy all files to dir, append name to each file"
+    print "arc_cp --input  /dir/name  # as above"
+    print "arc_cp -h                  # show help"
+    print "arc_cp --help              # as above"
+    print "arc_cp -v                  # run in verbose mode with detailed debugging information"
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hi:v",  ["help", "input"])
+except getopt.GetoptError, err:
+        print term.render('${RED}ERROR: Option is not recognized${NORMAL}')
+        usage()
+        sys.exit(2)
+
+input='undefined'
+for o, a in opts:
+        if o == "-v":
+            DEBUG = True
+        elif o in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif o in ("-i", "--input"):
+            input = a
+        else:
+            print term.render('${RED}ERROR: Unhandeled option${NORMAL}')
+
+
+print term.render('${CYAN} --- Current directory ---- ${NORMAL}')
+print PWDdir;
+print term.render('${CYAN} --------------------- ---- ${NORMAL}')
+
+
+
+# initial processing:
+NTOT=0
+N_PC=0
+
+fileslist=os.listdir(DIR)
+
+if len(fileslist)>0:
+   for  l  in  fileslist:
+        l=l.strip()
+        if not l.endswith(".conf"):  continue
+        lines=[]
+        N_PC=N_PC+1
+        ifile = open (DIR+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        for i in range(len(lines)):
+                  xline=lines[i]
+                  xline=xline.strip()
+                  if xline.startswith("#"):        continue
+                  ii=xline.find("CPU_N");
+                  if (ii>-1):
+                            xline=xline[ii+6:len(xline)]
+                            NCPU=int(xline);
+                            NTOT=NTOT+int(NCPU)
+                            continue
+   print "---> Nr avilable PCs =",str(N_PC)
+   print "---> Nr avilable CPUs =",str(NTOT)
+   print "---> Nr of expected outputs =",str(NTOT)
+
+
+print "---> File name from each job =",outFile
+print "---> Copy files to =",input+'[NUMBER].root'
+
+# make sure !
+whattodo = raw_input('Do you want to copy output?(y/n)').lower()
+if 'n' in whattodo:
+                print term.render('${RED}No action required!{NORMAL}')
+                sys.exit(1);
+
+
+output1=[]
+output2=[]
+missed=[]
+if 'y' in whattodo:
+  print term.render('${GREEN}---> Command was accepted ${NORMAL}')
+  # check file sizes 
+  for  l1  in os.listdir(JobDir):
+     f1=JobDir+l1 
+     itake=True
+     if not os.path.isdir( f1 ): itake=False
+     if not l1.startswith("run"):        itake=False
+
+     if (itake):
+        out1="none"
+        out2="none"
+        for  l2  in os.listdir(f1):
+            if not l2.endswith(outFile):  continue
+            if (DEBUG) : print "Output found=",l2
+            ff=f1+"/"+l2 
+            ns=os.path.getsize(ff)
+            if (ns<4):
+                print term.render('${YELLOW} Input file='+ff+' is empty!  Will be excluded from run${NORMAL}')
+            out1=l1
+            out2=l2
+        if (out2 != "none"): 
+             output1.append(out1)
+             output2.append(out2)
+        else:
+             missed.append(l1)
+
+if (len(missed)>0) :
+      print term.render('${RED}ERROR: There are less output ROOT files than expected number of finisihed jobs!${NORMAL}')
+      print term.render('${RED}      -->Expected  Nr outputs='+str(NTOT)+'${NORMAL}')
+      print term.render('${RED}      -->Found     Nr outputs='+str(len(output2))+'${NORMAL}')
+      print term.render('${RED}      -->Not found Nr outputs='+str(len(missed))+'${NORMAL}')
+      for  l in missed:
+                   print term.render('${RED}      --> Not found output='+JobDir+l+'${NORMAL}')
+
+
+if (len(missed)>0) : 
+      whattodo = raw_input('Do you want still copy ROOT files, even when some files are missing (y/n)').lower()
+if 'n' in whattodo:
+                print term.render('${RED}ERROR: No action required!{NORMAL}')
+                sys.exit(1);
+
+
+# combine jobs here
+k=0
+for  l in output2:
+                cmp='cp '+JobDir+output1[k]+'/'+l+' '+input+str(k+1)+'.root'
+                print cmp
+                os.system( cmp )
+                k=k+1
+                
+if (len(missed)>0) :
+             print term.render('${YELLOW}WARNING:${NORMAL}')
+             print '    --> Some output files are not found.'
+             print '    --> Go to directories and submit or run job manually'
+             print '    --> Study log files and check why they have failed'
+             for  l in missed:
+                  print '  -->Job location='+JobDir+l
+
+print 'Output files:'
+cmt='ls -lat '+input+'*'
+os.system( cmt ) 

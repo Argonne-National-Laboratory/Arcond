@@ -1,0 +1,28 @@
+#!/bin/bash
+CUR_DIR=`pwd`
+
+echo " --- ArCond help --- " 
+echo 
+cd $ARCOND_SYS/bin
+
+
+for filename in arc* 
+# Traverse list of files ending with 1st argument.
+do
+
+if [ $filename != "arc_help" ]
+then
+  COMM=`grep -i ">>" ${filename}`
+  CC=${COMM:1}
+  echo -ne '\E[37;35m'"\033[1m ${filename} \033[0m"
+  echo "    $CC"
+fi
+
+
+
+done
+
+
+cd $CUR_DIR
+echo "----- Done -----"
+exit 0               

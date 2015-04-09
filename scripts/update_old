@@ -1,0 +1,14 @@
+#!/bin/bash
+#>> ArCond update script
+
+# Get newest version of arcond from ASC 
+
+# ARC_HOME='/users/condor/Arcond'
+# PWD=`pwd`
+
+# cp -f $ARC_HOME/arcond $PWD/
+# cp -f $ARC_HOME/basic/* $PWD/basic/
+# cp -f $ARC_HOME/admin/* $PWD/admin/
+
+# echo "ArCond was updated in your installation area"
+ 

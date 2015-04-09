@@ -1,0 +1,41 @@
+User specific options
+====================
+ 
+1) Analysis_jobOptions_BASIC.py - the main athena option file
+
+2) ShellScript_BASIC.sh         - executed by the Condor.
+       
+
+
+If you want to use a private option file, 
+there are should be 2 modifications in the original athena file:
+
+1) Remove the line "theApp.EvtMax". Then  
+   replace any input collection with the line:
+
+include("InputCollection.py")
+ServiceMgr.EventSelector.InputCollections = dataCollection
+
+
+2) The output file should always has the name "Analysis.root".
+   Otherwise, change ShellScript_BASIC.sh which calls Analysis_jobOptions_BASIC.py.
+   This part of the  program should look like:
+
+# save ROOT histograms and Tuple
+from GaudiSvc.GaudiSvcConf import THistSvc
+ServiceMgr += THistSvc()
+ServiceMgr.THistSvc.Output = [ "AANT DATAFILE='Analysis.root' OPT='RECREATE'" ]
+from AnalysisTools.AnalysisToolsConf import AANTupleStream
+topSequence += AANTupleStream()
+AANTupleStream = AANTupleStream()
+AANTupleStream.ExtraRefNames = [ "" ]
+AANTupleStream.OutputName = 'Analysis.root'
+AANTupleStream.WriteInputDataHeader = True
+AANTupleStream.OutputLevel = WARNING
+
+
+Normally, you do not need to modify ShellScript_BASIC.sh.
+Read more info in the doc/
+
+
+S.Chekanov, ANL 

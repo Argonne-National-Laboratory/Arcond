@@ -1,0 +1,23 @@
+#!/bin/bash
+# >> Setup script. Initialize ArCond directory structure
+
+CUR_DIR=`pwd`
+echo 'Current directory='$CUR_DIR
+
+mkdir patterns
+mkdir DataCollector
+mkdir user
+mkdir Job
+
+ARC_SOURCE=$ARCOND_SYS/etc/arcond/share/
+cp $ARC_SOURCE/Analysis_jobOptions_BASIC.py $CUR_DIR/user/
+cp $ARC_SOURCE/ShellScript_BASIC.sh         $CUR_DIR/user/
+cp $ARC_SOURCE/*.cmd                    $CUR_DIR/patterns/
+cp $ARC_SOURCE/UserAnalysis.tgz         $CUR_DIR/Job/ 
+cp $ARC_SOURCE/arcond.conf              $CUR_DIR/
+cp $ARC_SOURCE/example.sh               $CUR_DIR/
+
+chmod -R 755 $CUR_DIR/*
+
+echo "--- initialization  is done --- " 
+exit 0;               

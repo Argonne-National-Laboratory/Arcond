@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+PWD=`pwd`
+TEXINPUTS=.:$PWD/jHPlot/latex:
+export TEXINPUTS
+
+rm -f *.aux
+
+name='arcond'
+latex $name
+# makeindex $name'.idx'
+latex $name
+bibtex $name
+latex $name
+latex $name
+# dvipdfm $name
+# pdflatex $name'.tex'
+# dvips $name
+dvipdf $name $name.pdf
+
+# dvips  $name'.dvi' -o $name'.ps'
+# ps2pdf $name'.ps'
+#
+# clean
+rm -f $name'.ps'
+# rm -f $name'.dvi'
+rm -f $name'.log'
+rm -f $name'.aux'
+rm -f $name'.bbl'
+rm -f $name'.blg'
+rm -f $name'.out'
+rm -f $name'.dvi'
+rm -f $name'.brf'
+# rm -f $name'.toc'
+rm -f *~
+# xpdf $name'.pdf'
+# gv $name'.ps'  
+rm -f *.bak
+rm -f *.idx 

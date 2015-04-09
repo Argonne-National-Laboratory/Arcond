@@ -1,0 +1,13 @@
+#!/bin/bash
+
+echo "Did you setup atlas release? You should to get a correct python"
+# source ~chakanau/s14.5.1
+
+# make sure we're running as root
+ID=/usr/bin/id;
+if (( `$ID -u` != 0 )); then { $ECHO "Sorry, must be root.  Exiting..."; exit; } fi
+
+
+cd dist
+cd arcond-*
+/usr/bin/python setup.py install --prefix=/share/grid/Arcond

@@ -1,0 +1,190 @@
+# Author: S.Chekanov (ANL) 
+# Dec 2007
+# ANL prompt photon analysis  
+
+lumi=0
+print "Integrated lumi=",lumi 
+
+
+from AthenaCommon.Constants import *
+from AthenaCommon.AppMgr import theApp
+from AthenaCommon.AppMgr import ServiceMgr
+import AthenaPoolCnvSvc.ReadAthenaPool
+
+
+# getting the data files here using DQ2.  The list of input files
+include("InputCollection.py")
+
+
+# enable Back Navigation in your job options
+ServiceMgr.EventSelector.BackNavigation = False 
+# get data
+ServiceMgr.EventSelector.InputCollections = dataCollection
+
+
+#-------------------------------------------------------------------------
+# Algorithms
+#-------------------------------------------------------------------------
+from AthenaCommon.AlgSequence import AlgSequence
+theJob = AlgSequence()
+
+
+from  PromptGamma.PromptGammaConf  import MyAlg
+theJob += MyAlg(OutputLevel = INFO)
+
+
+# fill edditional trees wth detailed information on egamma object
+# (isolation, leakage etc)
+MyAlg.SavePIDVariables = True  
+
+
+
+# get containers  
+MyAlg.PhotonContainer = "PhotonAODCollection"
+MyAlg.ElectronContainer = "ElectronAODCollection"
+MyAlg.MCParticleContainer = "SpclMC"
+
+
+#  cuts for prompt photons (in GeV)
+MyAlg.PhotonEtCut  = 50.0
+MyAlg.PhotonEtaCut = 2.5
+
+
+#  cuts for electron (in GeV)
+MyAlg.ElectronEtCut  = 50.0
+MyAlg.ElectronEtaCut = 2.5
+
+
+# reject event if photon has associated track with momenta > 1 GeV
+MyAlg.PhotonMinTrackP = 1.0 
+
+
+# set it to true for ATLFAST simulation 
+MyAlg.UseAtlfast = FALSE
+
+# tracks
+MyAlg.TrackParticleContainer= "TrackParticleCandidate"
+# MyAlg.TrackParticleContainer= "AtlfastTrackParticles"
+
+
+# trigger items need to be given with the prefix L1_, L2_ or EF_
+# MyAlg.TriggerTaken=["L1_EM18","L1_MU20","L2_e20","L2_mu20","EF_e20","EF_mu20"]
+# MyAlg.TriggerTaken=["EF_g15i","EF_g20i"]
+
+# for release 14.1 
+MyAlg.TriggerTaken=["EF_g25_L32"]
+
+# do you want to cut event based on the trigger above?
+MyAlg.UseTriggerCut = True
+
+# with isolation
+# MyAlg.TriggerTaken=["EF_g15i"]
+
+
+#  jet cut
+#  Cone7H1TowerParticleJets
+#  Kt4H1TopoParticleJets
+#  Kt4H1TowerParticleJets
+#  Kt6H1TopoParticleJets
+#  Kt6H1TowerParticleJets
+MyAlg.JetRecoContainer = "Kt6H1TopoJets"
+MyAlg.JetEtCut  = 60.0
+MyAlg.JetEtaCut = 2.5
+
+# There is only one Atlfast ParticleJet Collection in the AOD,
+# corresponding to a Cone4 jet algorithm
+# MyAlg.JetRecoContainer = "AtlfastParticleJetContainer"
+
+
+# take only leading jet or gamma or not?
+# set to TRUE  if only leading jet or gamma is considered
+MyAlg.OnlyLeadingObject = TRUE
+
+# when all jets and photons above cuts are taken.   
+# MyAlg.OnlyLeadingObject = FALSE
+
+
+
+# to remove gamma from the jet list,
+# use matching parameter in phi and eta
+MyAlg.DeltaRMatchGammaJet=0.2
+
+
+## true jets
+#  Cone7TruthParticleJets
+#  Kt4TruthParticleJets
+#  Kt6TruthParticleJets
+MyAlg.JetTrueContainer = "Kt6TruthJets"
+
+
+# set this true if you want to run over photons
+# which do not originate from the quarks lines
+MyAlg.TakeBackgroundOnly=False
+
+
+# for resolution studies only! 
+# max distance in phi and eta between true and reconstructed
+MyAlg.DeltaRMatchCutGamma  =0.2 
+MyAlg.DeltaRMatchCutJet    =0.2
+
+
+# isolation for true level
+# take only true photons with PT/Etot >0.9 in the cone = 1
+MyAlg.IsoConeTrue = 0.6
+MyAlg.IsoConeMinPtTrue= 0.9
+
+# min missing ET for objects used to calculate gamma-object invariant mass
+MyAlg.MissETmin = 40. # in GeV 
+
+# output
+# Set output level threshold (2=DEBUG, 3=INFO, 4=WARNING, 5=ERROR, 6=FATAL )
+MyAlg.OutputLevel = 3
+
+
+# do not change this! This is an automatic variable!
+MyAlg.Luminosity = lumi
+
+# set to true for no any calculations
+MyAlg.RunFastNoCalculations = False
+ 
+
+
+##
+##########################################
+## Set up trigger configuration service and metadata service is relies on, for analysis job without RecExCommon
+from AthenaCommon.GlobalFlags import GlobalFlags
+GlobalFlags.DetGeo.set_atlas()
+
+## set up trigger decision tool
+from TrigDecision.TrigDecisionConfig import TrigDecisionTool
+tdt = TrigDecisionTool()
+ToolSvc += tdt
+
+# might be needed for TriggerConfigGetter...
+from RecExConfig.RecFlags  import rec
+rec.readAOD=True
+rec.doWriteAOD=False
+rec.doWriteESD=False
+
+# note to read AOD produced with 13.0.30 you need to add: 
+#from TriggerJobOpts.TriggerFlags import TriggerFlags
+#TriggerFlags.configurationSourceList = ['aod']
+
+# set up trigger config service
+from TriggerJobOpts.TriggerConfigGetter import TriggerConfigGetter
+cfg =  TriggerConfigGetter()
+## END of trigger setup
+
+AthenaEventLoopMgr = Service("AthenaEventLoopMgr")
+AthenaEventLoopMgr.OutputLevel = WARNING
+
+##########################################
+from GaudiSvc.GaudiSvcConf import THistSvc
+ServiceMgr += THistSvc()
+ServiceMgr.THistSvc.Output = ["AANT DATAFILE='Analysis.root' OPT='RECREATE'"]
+
+
+
+# Set output level threshold (2=DEBUG, 3=INFO, 4=WARNING, 5=ERROR, 6=FATAL )
+MessageSvc = Service( "MessageSvc" )
+MessageSvc.OutputLevel = ERROR

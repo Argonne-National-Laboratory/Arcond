@@ -1,0 +1,21 @@
+1) First test it: run
+
+./Make_package_install
+
+It's goot to do this before source of ATLAS release and after.
+This wey you will make arcond for python2.4 and 2.5
+
+Test it: Go to directory "test'" and setup:
+
+source /tmp/Arcond/etc/arcond/arcond_setup.sh
+
+arc_setup
+
+2) Then install it under share as: Make_install_shared
+   (make sure you run Make_package_install first!)
+
+3) Copy: Make_WWW 
+
+
+To make new release, change the version number in 
+ arcondtools/ArcondToolsPkgInfo.py 

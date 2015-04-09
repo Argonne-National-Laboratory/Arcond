@@ -1,0 +1,24 @@
+
+You are not using the latest released stable version of the DQ2 clients!
+
+Please check https://twiki.cern.ch/twiki/bin/view/Atlas/DQ2Clients for the newest version number, go to the directory where you installed them and do:
+
+  pacman -get "http://atlas.web.cern.ch/Atlas/GROUPS/DATABASE/project/ddm/releases/pacman/cache:DQ2Clients | version('version number')"
+
+For example:
+
+  pacman -get "http://atlas.web.cern.ch/Atlas/GROUPS/DATABASE/project/ddm/releases/pacman/cache:DQ2Clients | version('0.1.13')"
+
+RPM installations can be upgraded with yum or apt.
+Please see the documentation for details.
+
+Group of sites selected, skipping domain name check
+Querying DQ2 central catalogues to resolve datasetname mc08.106070.PythiaZeeJet_Ptcut.recon.AOD.e352_s462_r541_tid025899
+Datasets found: 1
+mc08.106070.PythiaZeeJet_Ptcut.recon.AOD.e352_s462_r541_tid025899: Directory /tmp already exists
+mc08.106070.PythiaZeeJet_Ptcut.recon.AOD.e352_s462_r541_tid025899: Querying DQ2 central catalogues for replicas...
+mc08.106070.PythiaZeeJet_Ptcut.recon.AOD.e352_s462_r541_tid025899: Using complete replica at given site
+Querying DQ2 central catalogues for files in dataset...
+mc08.106070.PythiaZeeJet_Ptcut.recon.AOD.e352_s462_r541_tid025899: Using site MWT2_UC_MCDISK
+mc08.106070.PythiaZeeJet_Ptcut.recon.AOD.e352_s462_r541_tid025899: Querying local file catalogue of site MWT2_UC_MCDISK...
+Request canceled by client

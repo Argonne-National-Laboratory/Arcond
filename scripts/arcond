@@ -1,0 +1,738 @@
+#!/bin/bash
+#    >> Main submission script for a T3g PC farm
+
+# This code is licensed under the GNU General Public License (GPL) version 3 
+# see doc/ for details 
+# Copyright (c) 2008 by S.Chekanov (chakanau@hep.anl.gov). 
+# All rights reserved.
+
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+
+__version__ = 'Arcond 1.4'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Sep. 2009. For details see doc and the ASC workbook'
+
+
+
+# set response time for all nodes to 2 min (120 sec)
+RESPONSE_TIME=120
+
+
+
+# ****************************** do not modify below *****************
+
+# Yes to all questins?
+YES_ALL=False
+
+
+import os,sys,re,shutil
+import getopt
+import glob
+import datetime
+import time,commands
+from arcondtools.initialize import *
+term = TerminalController()
+from time import strftime
+
+def usage():
+    print "USAGE:"  
+    print "arcond -i input.conf           # run ancord with a certain configuration file"
+    print "arcond --input input.conf      # as above"
+    print "arcond -h                      # show help"
+    print "arcond -allyes                 # say yes to all questions"
+    print "arcond --help                  # as above"
+    print "arcond -v                      # run in verbose mode with detailed debugging information"
+    print "If arcond is executed without any argument, input configuration file \'arcond.f\' is assumed." 
+ 
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hia:v",  ["help", "input","allyes"])
+except getopt.GetoptError, err:
+        print term.render('${RED}ERROR: Option is not recognized${NORMAL}')
+        usage()
+        sys.exit(2)
+
+PWDdir="";
+f = os.popen("pwd", "r")
+for l in f.xreadlines():
+       l=l.strip()
+       PWDdir=l;
+       break;
+
+ARCOND_SYS=''
+if os.environ['ARCOND_SYS']:
+   ARCOND_SYS=os.environ['ARCOND_SYS']
+else:
+     print term.render('${RED}ERROR: ARCOND_SYS is not defined${NORMAL}')
+     sys.exit(2)
+ 
+
+
+# input configuration  
+input =PWDdir+"/arcond.conf"
+
+# set true for debugging
+DEBUG=False
+
+
+for o, a in opts:
+        if o == "-v":
+            DEBUG = True
+        elif o in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif o in ("-allyes"):
+            YES_ALL=True
+            print term.render('${GREEN}Using mode: \'allyes\'. Arcond will not ask any questions! ${NORMAL}')
+        elif o in ("-i", "--input"):
+            input = a
+        else:
+            print term.render('${RED}ERROR: Unhandeled option${NORMAL}') 
+
+
+	   
+
+# check condor 
+iscondor=os.system('which condor_q > /dev/null 2>&1')
+if iscondor>0:
+  print term.render('${RED}ERROR: CONDOR is not set ${NORMAL}')
+  print term.render('${RED}SOLUTION:setup condor or grid OSG software${NORMAL}')
+  sys.exit(1);
+
+
+# limit number of submissions
+from subprocess import Popen, PIPE, STDOUT
+MaxJobsAllowed=220
+cmd='condor_status -run'
+p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)
+output = p.stdout.read()
+xxn=output.split('\n')
+Nbusy=len(xxn)-9
+if (Nbusy<0): Nbusy=0
+if (Nbusy>MaxJobsAllowed):
+  print term.render('${RED}ERROR: The farm is busy. Nr of running jobs is larger than '+str(MaxJobsAllowed)+' ${NORMAL}')
+  print term.render('${RED}SOLUTION: Wait or set a smaller number of processes per server in arcond.conf${NORMAL}')
+  sys.exit(1);
+
+
+
+# now check version 
+# error_ver=checkversion(term,PWDdir,DEBUG)
+# if (error_ver >0):
+#          print term.render('${RED}Too old version of ArCond${NORMAL}')
+#          print term.render('${RED}Update is available. Please run \'arc_update\' to update ArCond package${NORMAL}')
+#          sys.exit(1);
+
+
+print term.render('${GREEN}################# ArCond-'+ARC_VERSION+' ####################${NORMAL}')
+print term.render('${GREEN}##${NORMAL}${CYAN}                 ANL ASC                     ${NORMAL}${GREEN}##${NORMAL}')
+print term.render('${GREEN}#################################################${NORMAL}')
+
+
+warning=0
+error=0
+
+# default number of events
+Nevents=-1
+
+
+print term.render('${CYAN} --- Current directory ---- ${NORMAL}')
+print PWDdir;
+print term.render('${CYAN} -------------------------- ${NORMAL}')
+
+
+# check file
+try:
+        about = os.stat(input)
+        if (about<1):
+           print term.render('${RED}Input file \'arcond.conf\' exists, but it is empty!${NORMAL}')
+           sys.exit(1)
+except OSError:
+        print term.render('${RED}File  \'arcond.conf\' does not exist or is not accessible${NORMAL}')
+        sys.exit(1)
+
+
+
+try:
+      print term.render('${CYAN} Input configuration='+input+' ${NORMAL}')
+      config = ConfReader(input)
+except IOError:                                                       # can't read file
+      print term.render('${RED} --- Error in reading configuration file:'+input+' ---- ${NORMAL}')
+      print ' --> cannot read configuration file: ', input 
+
+config.set('atlas_release', default='15.4.1')
+config.set('events', post=int)
+config.set('package_dir', default='./')
+config.set('input_data', default='None')
+config.set('storage_type', default='local')
+config.set('max_jobs_per_node', post=int)
+
+
+try:
+       config.parse()                                                          # parse the file
+except ConfigMissingError, why:
+      print term.render('${RED} --- Error in reading configuration file: ---- ${NORMAL}')
+      print input, "Missing config", why
+except ConfigPostError, why:
+      print input, "Postprocessing Error", why
+
+AtlasRelease     =  config.atlas_release     # atlas release 
+Nevents          =  config.events;           # Number of events per job
+PackageRootDIR   =  config.package_dir       # package dir 
+InputDIR         =  config.input_data        # input data
+StorageType      =  config.storage_type      # storage type, either "local" or "central"
+MaxJobsPerNode   =  config.max_jobs_per_node # max number per job 
+
+
+
+# Check: is this run over input data?
+InputDIR=InputDIR.strip()
+DataRun=False
+if InputDIR != "None" and len(InputDIR)>2:
+   DataRun=True 
+else:
+   DataRun=False
+
+
+if (DEBUG == True ):
+       print "verbose mode is activated for debugging!"
+
+
+# check: is package really exits?
+try:
+        about = os.stat(PackageRootDIR)
+        if (DEBUG):  print "Directory=",PackageRootDIR,"  exists"
+except OSError:
+        print term.render('${RED}'+PackageRootDIR+'  does not exist or is not accessible${NORMAL}')
+        sys.exit(1)
+
+
+try:
+        about = os.stat(PackageRootDIR+'/cmt')
+        if (DEBUG):  print "Directory=",PackageRootDIR+'/cmt',"  exists"
+except OSError:
+        print term.render('${RED}'+PackageRootDIR+'  does not point to a user package${NORMAL}')
+        print term.render('${RED}Make sure you have the usual structure: cmt,src, etc inside the package directory${NORMAL}')
+        sys.exit(1)
+
+
+
+
+tab=PackageRootDIR.split("/")
+PackageName=tab[len(tab)-1] 
+xline=''
+for i in range(len(tab)-1):
+               xline=xline+tab[i] + '/' 
+
+PackagePath=xline
+
+
+
+# first clear all runs
+JobDir=PWDdir+"/Job/"
+DIR=PWDdir+"/DataCollector/"
+JobNumber=0
+Node="none"
+
+
+# check the job directory
+if not os.path.isdir(JobDir):
+    if (DEBUG): print "---> Directory=",JobDir,' does not exists. Create it!' 
+    os.mkdir(JobDir)
+
+  
+if not os.path.isdir(DIR):
+    if (DEBUG): print "---> Directory=",DIR,' does not exists. Create it!' 
+    os.mkdir(DIR)
+
+
+N_PC=0
+for  l  in os.listdir(PWDdir+"/patterns"):
+        l=l.strip()
+        if not l.endswith(".cmd"):  continue
+        N_PC=N_PC+1
+
+
+DBlist=os.listdir(DIR)
+NDBlist=len(DBlist)
+
+
+if (DataRun == True):
+  print "---> Input data located at =",InputDIR
+else:
+  print "---> Run without data input"
+
+print "---> Nr of included PCs =",N_PC
+# print "---> Request for =",str(NDBlist), ' PCs' 
+if MaxJobsPerNode<0:
+  print "---> All available cores on each node are used"
+else:
+  print "---> Maximum number of cores per node =",MaxJobsPerNode
+ 
+
+if StorageType == "local":
+ print "---> Request for data from a local disk storage" 
+else:
+ print "---> Request for data from a common file storage"
+
+
+# now check CPU cores
+boxname,boxstat,error=checknodes(term,PWDdir,MaxJobsPerNode)
+if (error >0):
+    print term.render('${RED}     -->EXIT NOW${NORMAL}')
+    sys.exit(1);
+
+print "---> Maximum number of allowed jobs for the farm =",str(MaxJobsAllowed)
+print "---> Nr of busy slots on the farm =",str(Nbusy)
+
+
+# make sure !
+whattodo=[]
+
+if DataRun == True: 
+  if YES_ALL == False:
+   if (NDBlist>0) : 
+     mess="Start the data discovery tool?\n-> To discover data on-fly, type \"f\"\n-> To discover data using ArCond static database created every 24h, say \"s\"\n-> Do not discover data, say \"n\"\n" 
+     whattodo = raw_input(mess).lower()
+   else:
+     mess="No database with data is available. \nYou have to start the data discovery tool first\n-> To discover data on-fly, type \"f\"\n-> To discover data using ArCond static database created every 24h, say \"s\"\n"
+     whattodo = raw_input(mess).lower()
+  else:
+     whattodo = 's'
+
+ 
+  if 'n' in whattodo:
+    print term.render('${GREEN}--->OK, no database required ${NORMAL}')
+    if (NDBlist<1): 
+                print term.render('${RED}ERROR: You cannot continue without the input file database!${NORMAL}')
+                sys.exit(1);
+    print
+    pass
+
+  if 's' in whattodo:
+    print term.render('${GREEN}--->OK, discover data using ArCond static database${NORMAL}')
+    error=collect_db(term,PWDdir,InputDIR,DEBUG,MaxJobsPerNode) 
+    if (error>0) :
+            print term.render('${RED}ERROR: Data cannot be found in ArCond static database!${NORMAL}')
+            sys.exit(1);
+ 
+
+  if 'f' in whattodo:
+    error=checkstatus(term,PWDdir)
+    if (error >0):
+          print term.render('${RED} -->Creation of database with input collections will fail${NORMAL}')
+          print term.render('${RED} -->Reason: Some CPU nodes are busy${NORMAL}')
+          print term.render('${RED}            Check this as: \'condor_status -claimed\'${NORMAL}')
+          print term.render('${RED} -->Exit NOW!${NORMAL}')
+          sys.exit(1);
+
+    print term.render('${GREEN}---> Building the database on all nodes with input AOD/DPD files${NORMAL}')
+    # remove old staff
+    cmt  = 'rm -fr '+DIR+'*' 
+    os.system( cmt )
+    cmt  = 'rm -f '+PWDdir+'/databuilder.log'
+    os.system( cmt )
+    # build DB 
+    cmt=ARCOND_SYS+'/bin/databuilder.sh '+InputDIR + ' > '+PWDdir+'/databuilder.log 2>&1'
+    os.system( cmt )
+    progress0 = ProgressBar(term, 'Processing status:')
+    kk=0
+    SEC_TIC=2
+    N_LOOPS=RESPONSE_TIME / SEC_TIC 
+    for i in range(N_LOOPS):
+      time.sleep( SEC_TIC )
+      current=os.listdir(DIR)
+      ncur=len(current)
+      progress0.update(float(ncur)/N_PC, 'working on node %s' %  str(ncur))
+      if (ncur >= N_PC): break
+      kk=kk+1
+
+    if (kk >= N_LOOPS-1) :
+      print term.render('${YELLOW} WARNING: Cannot process all computer notes!  ${NORMAL}')
+      print term.render('${YELLOW}  --> It is likely that the response time for some PC node is too slow. ${NORMAL}')
+      print term.render('${YELLOW}  --> Check this using \"condor_q\"  ${NORMAL}')
+      print term.render('${YELLOW}  --> If there are jobs in \"Idle\" state, remove these PCs from the node or fix them ${NORMAL}')
+      print term.render('${YELLOW}  --> One can also increase response time \'RESPONSE_TIME\' ${NORMAL}')
+      print term.render('${YELLOW}  --> The database will not be complete: data on this node will not be processed ${NORMAL}')
+      print term.render('${YELLOW}  --> Arcond will continue at this point, but without this problematic PC node. ${NORMAL}')
+      warning=1
+
+    if warning == 0: 
+      print term.render('${GREEN}---> Database was created successfully${NORMAL}')
+    else:
+      print term.render('${YELLOW}---> Database was build with warning (some PC nodes did not repond)${NORMAL}')
+
+    progress0.clear()
+
+  
+# check file sizes 
+  for  l  in os.listdir(DIR):
+        ff=DIR+l
+        if not l.endswith(".conf"):  continue
+        lines=[]
+        ifile = open (DIR+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        Ndata=0
+        for i in range(len(lines)):
+                  xline=lines[i]
+                  xline=xline.strip()
+                  if xline.startswith("#"):        continue
+                  if len(xline)<1:                 continue
+                  if xline.startswith("CPU_N"):    continue
+                  Ndata=Ndata+1
+        if (Ndata<1):
+             print term.render('${YELLOW}WARNING:${NORMAL}')
+             print term.render('${YELLOW}  --> Input config file='+ff+' has no any data found!\nThis computer node will be removed from the submission${NORMAL}')
+             os.remove( ff )
+
+  cmt  = 'rm -rf  Job.sent.*'
+  os.system( cmt )
+# make sure that all data files inside the configuration files are unique 
+  if StorageType == "local": 
+            duplicates(term,DIR) # remove duplicates if any  
+  else:
+            getcentral(term,DIR) # redu inputs for central storage 
+
+#=========================
+def Create_SubmitScript():
+#=========================
+  global Node,CurrentRunDIR,JobNumber
+
+
+  run="run"+str(JobNumber) 
+  if (DEBUG): print '\n   [1] Creating submit script for  --> %s' % (run)
+
+
+  input = open( ARCOND_SYS+'/etc/arcond/share/submit_BASIC.sh', 'r' )
+  output = open( CurrentRunDIR+'/submit.sh', 'w')
+
+  # remove "hep.anl.gov" from the node.
+  # we do not need it as submission was defined for
+  # atlas16, atlas16 etc
+  site=Node.replace(".hep.anl.gov","") 
+  for s in input.xreadlines():
+        output.write(s.replace('XXsiteXX', site))
+
+  input.close()
+  output.close()
+
+  #-- Make shell script executable
+  os.chmod( CurrentRunDIR+'/submit.sh', 0755 )
+
+
+  # copy submit jobs 
+  shutil.copyfile(ARCOND_SYS+'/etc/arcond/share/submit_job.sh', CurrentRunDIR+"/submit_job.sh");
+  os.chmod( CurrentRunDIR+"/submit_job.sh",  0755 )
+
+############### end of Create_SubmitScript() ##############   
+
+
+
+
+#============================
+def Create_Analysis_jobOptions():
+#============================
+# Create analysis option file from BASIC
+  global Node,Nevents,CurrentRunDIR,JobNumber 
+
+  joboptions_filename_basic = "user/Analysis_jobOptions_BASIC.py"
+  joboptions_filename_ana   = CurrentRunDIR+'/Analysis.py'
+
+  #-- Look for template input file
+  if (DEBUG) : print '   [2] Creating Analysis_Job file   --> %s' % (joboptions_filename_ana)
+
+#-- Change template joboptions file (if file exists alread delete it first)
+  output_fh = open(joboptions_filename_ana, 'w')
+  for line in open(joboptions_filename_basic):
+      line = line.replace("XNEVENTSX",       str(Nevents)     )   # number of events
+      output_fh.write(line)
+  output_fh.close()
+  os.chmod( joboptions_filename_ana,  0755 )
+
+### end of  Create_Analysis_Script ########
+
+
+
+
+#============================
+def Create_Run_Script():
+#============================
+  global Node,Nevents,PackageRootDIR,CurrentRunDIR,JobNumber,PWDdir,AtlasRelease,siteroot 
+
+  joboptions_filename_basic = "user/ShellScript_BASIC.sh"
+  joboptions_filename_ana   = CurrentRunDIR+'/ShellScript.sh'
+  #-- Look for template input file
+  if (DEBUG) : print '   [3] Creating Run_Script     --> %s' % (joboptions_filename_ana)
+
+  output_fh = open(joboptions_filename_ana, 'w')
+  for line in open(joboptions_filename_basic):
+      line = line.replace("XNEVENTSX",       str(Nevents)     )     # number of events
+      line = line.replace("XXPackageRootXX",   PackageRootDIR    )  # Root dir for the package 
+      line = line.replace("XSUBMISSIONDIRX",  PWDdir)               # current dir 
+      line = line.replace("XXPackageNameXX",  PackageName)          # current dir 
+      line = line.replace("XATHENAVERSIONX",  AtlasRelease)
+      line = line.replace("XXDIRXX",          CurrentRunDIR)        # local dir from which job was sent 
+      output_fh.write(line)
+  output_fh.close()
+  os.chmod( joboptions_filename_ana,  0755 )
+
+### end of  Run_Script  ########
+
+
+tar_project=JobDir+PackageName+".tgz"
+PROJ_FOND=True;
+# check file
+try:
+   about = os.stat(tar_project)
+   if (about<1):
+      PROJ_FOND=False 
+except OSError:
+      PROJ_FOND=False 
+
+
+DO_TAR=True
+if (PROJ_FOND): 
+   if YES_ALL == False:
+      whattodo=raw_input('Project file:'+tar_project+' was found.\nDo you want to rebuild it (y/n)? ').lower()
+   else:
+      whattodo='y'
+
+   if 'n' in whattodo:
+     print term.render('${NORMAL}--> Keeping project file from previous run ${NORMAL}')
+     DO_TAR=False
+   
+
+
+# rebuilding the project
+if (DO_TAR):
+  cmt=ARCOND_SYS +'/bin/tar_project.sh '+PackageName+' '+PackagePath
+  if (DEBUG):
+         os.system( cmt )
+  else:
+         sout=commands.getoutput(cmt)
+
+
+
+
+## correct the number of CPU cores
+## in case if it is given  
+err=nrcores(DIR,PWDdir,MaxJobsPerNode)
+
+
+
+
+
+# initial processing:
+NTOT=0
+N_PC=0
+if DataRun == True:
+   for  l  in os.listdir(DIR):
+        l=l.strip()
+        if not l.endswith(".conf"):  continue
+        lines=[]
+        N_PC=N_PC+1
+        ifile = open(DIR+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        for i in range(len(lines)):
+                  xline=lines[i]
+                  xline=xline.strip()
+                  if xline.startswith("#"):        continue
+                  ii=xline.find("CPU_N");
+                  if (ii>-1):
+                            xline=xline[ii+6:len(xline)]
+                            NCPU=int(xline);
+                            NTOT=NTOT+int(NCPU)
+                            continue
+
+# in case of no data, calculate available CPUs 
+if DataRun == False:
+   N_PC=len(boxstat)
+   for l in boxstat:
+          NTOT=NTOT+l
+
+if (N_PC == 0):
+  print term.render('${RED}ERROR: No any useful CPU found! ${NORMAL}')
+  print
+  sys.exit(1);
+
+
+print "---> Root package directory =",PackagePath
+print "---> Package name =",PackageName
+print "---> Package submission file = Job/"+PackageName+".tgz"
+print "---> Package submission log file = Job/"+PackageName+".log"
+print "---> Number of events in one job =",Nevents
+print "---> Atlas release =",AtlasRelease
+print "---> Nr of requested slots per server =",str(N_PC)
+print "---> Nr of requested jobs for the farm =",str(NTOT)
+print "---> Nr of busy slots on the farm is ",str(Nbusy)
+
+
+if warning == 1:
+             print term.render('${YELLOW}     WARNING: Not all nodes can be processed !  ${NORMAL}')
+             print term.render('${YELLOW}     Some input data on nodes with low response will not be processed (see above) ${NORMAL}')
+if DataRun == True: print "---> Data splitted for =",str(NTOT), " ranges "
+print "--->",str(NTOT)," jobs will be submitted to =",str(N_PC), "  PCs"
+
+
+## limit the number of jobs
+if (Nbusy+NTOT>MaxJobsAllowed):
+  print term.render('${RED}ERROR: The farm is too busy. Together with your '+str(NTOT)+' jobs, Nr of jobs > '+str(MaxJobsAllowed)+' ${NORMAL}')
+  print term.render('${RED}SOLUTION: Wait or set a smaller number of jobs per server in arcond.conf${NORMAL}')
+  sys.exit(1);
+
+
+## limit the number of jobs
+if (len(xxn)-9+NTOT>MaxJobsAllowed):
+  print term.render('${RED}ERROR: The farm will be too busy. Together with your jobs, the total Nr of jobs > '+str(MaxJobsAllowed)+' ${NORMAL}')
+  print term.render('${RED}SOLUTION: Wait or set a smaller number of processes per server in arcond.conf${NORMAL}')
+  sys.exit(1);
+
+
+
+# make sure !
+if YES_ALL == False:
+  whattodo = raw_input('Do you want to prepare the submission scripts (y/n)? ').lower()
+else:
+  whattodo = 'y'
+
+
+if 'n' in whattodo:
+  print term.render('${RED}ERROR: No action! ${NORMAL}')
+  print 
+  sys.exit(1);
+
+# remove old staff
+remove_command = 'rm -rf ' + JobDir+"run*"
+os.system( remove_command )
+
+
+ 
+progress = ProgressBar(term, 'Submission runs:')
+
+
+# set output colour:
+if DataRun == True:
+  for  l  in os.listdir(DIR):
+        l=l.strip()
+        if not l.endswith(".conf"):  continue
+
+        lines=[]
+        ifile = open (DIR+l,'r')
+        lines=lines+ifile.readlines()      # read file into list of lines
+        ifile.close()
+        Node=l.replace('.conf','')
+
+        
+        NCPU=2
+        data=[]
+        for i in range(len(lines)):
+                  xline=lines[i]
+                  xline=xline.strip()
+                  if xline.startswith("#"):        continue
+                  ii=xline.find("CPU_N");
+                  if (ii>-1):
+                            xline=xline[ii+6:len(xline)]
+                            NCPU=int(xline);
+                            continue
+                  data.append(xline)       
+
+        del lines
+        if (DEBUG) : print "Process=",Node, " with CPU=",NCPU 
+
+        # split depending on how many CPUs available
+        DataSplitted=split_seq(data,NCPU) 
+        # print "No of data=",data
+        for job in range(NCPU): 
+                Data=DataSplitted[job]
+                CurrentRunDIR = JobDir+'run' + str(JobNumber)+"_"+Node
+                os.mkdir ( CurrentRunDIR )
+                inp_filename  = CurrentRunDIR+"/InputCollection.py" 
+                output_fh = open(inp_filename, 'w')
+                output_fh.write("# Data set: "+str(JobNumber)+"\n\n" )
+                output_fh.write("theApp.EvtMax = "+str(Nevents)+"\n\n" )
+                output_fh.write("dataCollection = [\n" )
+                for i in range(len(Data)):
+                         sfile=Data[i]
+                         # print ind," len=", len(sfile)," ",sfile
+                         if (i < len(Data)-1 ): output_fh.write("\""+sfile+"\",\n")
+                         if (i == len(Data)-1 ): output_fh.write("\""+sfile+"\"]\n")
+                output_fh.close()
+                os.chmod( inp_filename,  0755 )
+
+
+                # create submit dir
+                Create_SubmitScript()
+                Create_Analysis_jobOptions()
+                Create_Run_Script()
+                progress.update(float(JobNumber)/NTOT, 'working on %s' %  str(JobNumber))
+                JobNumber=JobNumber+1
+  progress.clear()          
+  print "---> Submission scripts in Job/* are ready"
+
+
+## no deal with jobs without input 
+if DataRun == False:
+   JobNumber=0
+   NCPU=0
+   for i in range(len(boxname)): 
+       NCPU=boxstat[i]  
+       Node=boxname[i] 
+       for k in range(NCPU):
+                CurrentRunDIR = JobDir+'run' + str(JobNumber)+"_"+Node
+                os.mkdir ( CurrentRunDIR )
+                Create_SubmitScript()
+                Create_Analysis_jobOptions()
+                Create_Run_Script()
+                progress.update(float(JobNumber)/NTOT, 'working on %s' %  str(JobNumber))
+                JobNumber=JobNumber+1
+   progress.clear()
+   print "---> Submission scripts in Job/* are ready"
+ 
+
+
+
+
+######################### submission part ##################################
+if YES_ALL == False:
+   whattodo = raw_input('Submit all prepared jobs to the PC farm? (y/n)').lower()
+else:
+   whattodo = 'y'
+
+
+if 'n' in whattodo:
+  print term.render('${RED}ERROR: No action! ${NORMAL}')
+  print
+  sys.exit(1);
+
+if 'y' in whattodo:
+  # add a history file to the home directory
+  envhome = os.getenv("HOME")
+  subtime=strftime("%Y-%m-%d %H:%M:%S")
+  historyfile=envhome+"/.arcond_history"
+  handle = open(historyfile,"a")
+  handle.write(InputDIR+" | "+AtlasRelease+" | " +PackageRootDIR+" | "+StorageType+" | "+subtime+"\n")
+  handle.close()
+  os.chmod(historyfile,0766)
+  print " "
+  print "ROOT submission directory="+JobDir
+  for  l  in os.listdir( JobDir ):
+     l=l.strip()
+     dir=JobDir+l
+     itake=True
+     if not os.path.isdir(  dir ): itake=False
+     if not l.startswith("run"):   itake=False
+     if (itake):
+        print term.render('${CYAN} Submitted to:'+l+'${NORMAL}')
+        cmt = "cd "+dir+"; ./submit.sh; cd "+PWDdir 
+        if (DEBUG):
+              os.system( cmt ) 
+        else:
+              sout=commands.getoutput(cmt)
+
+print term.render('${GREEN}All done!. Check submissions with \"condor_q\" ${NORMAL}')
+ 

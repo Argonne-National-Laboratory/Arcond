@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: arcond
+Version: 0.16
+Summary: Arcond Client Package for Tier3g clusters
+Home-page: http://atlaswww.hep.anl.gov/asc/arcond
+Author: Sergei Chekanov
+Author-email: chakanau@hep.anl.gov
+License: GPL
+Description: This package contains Arcond front-end of Condor
+Platform: UNKNOWN

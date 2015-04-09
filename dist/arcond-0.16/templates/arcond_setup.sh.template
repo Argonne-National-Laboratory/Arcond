@@ -1,0 +1,4 @@
+export PATH=@@install_scripts@@:$PATH
+export PYTHONPATH=@@install_purelib@@${PYTHONPATH:+:$PYTHONPATH}
+export ARCOND_CONFIG_ROOT=~/.arcond
+export ARCOND_SYS=@@install_dir@@

@@ -1,0 +1,15 @@
+#!/bin/bash
+DIR=`pwd`
+rm -rf dist/arc*
+rm -rf /tmp/Arcond
+rm -f   MANIFEST 
+python setup.py sdist
+cd dist
+tar -zvxf  arcond-0.16.tar.gz
+cd arcond-0.16
+python setup.py install --prefix=/tmp/Arcond
+
+cd $DIR
+
+echo "Got to directory : test  and and setup arcond"
+echo "Type:  source /tmp/Arcond/etc/arcond/arcond_setup.sh" 

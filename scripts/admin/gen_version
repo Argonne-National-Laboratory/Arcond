@@ -1,0 +1,39 @@
+#!/bin/bash
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+
+
+__version__ = 'Arcond 1.0'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'Generated version file'
+
+
+import os,sys,re,shutil
+import time, glob
+import getopt
+
+timestamp=time.time()/(60*60*24) #  "days since 1/1/1970"
+
+print timestamp
+
+
+timestamp=int(timestamp )
+
+print timestamp
+
+
+timestamp= str(timestamp)
+
+
+f="version.txt"
+try:
+   fin = open(f, "w")
+   fin.write( "# Latest ArCond version generated days after 1970\n"  )
+   fin.write( timestamp  )
+   fin.close()
+except IOError:
+   print "File %s does not exist!" % f
+
+
+

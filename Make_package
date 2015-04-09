@@ -1,0 +1,6 @@
+#!/bin/bash
+
+rm -rf dist/arc*
+rm -rf /tmp/Arcond
+rm -f   MANIFEST 
+python setup.py sdist

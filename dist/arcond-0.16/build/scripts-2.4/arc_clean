@@ -1,0 +1,26 @@
+#!/bin/bash
+# >> Clear all submissions from previous runs 
+
+CURR_DIR=`pwd`
+cd $CURR_DIR
+
+
+while true; do
+  echo -ne "\033[1mClean ArCond submission project? (y/n) :\033[0m"
+  read yn
+  case $yn in
+    y* | Y* ) command ; break ;;
+    [nN]* )   echo "No any action" ; exit; break ;;
+    q* ) exit ;;
+    * ) echo "Enter yes or no" ;;
+  esac
+done
+
+
+rm -rf  ${CURR_DIR}/Job/run*
+rm -rf  ${CURR_DIR}/DataCollector
+rm -f *.log
+
+echo 'Directories in Job and DataCollector removed'
+echo 'All is done'
+exit 0

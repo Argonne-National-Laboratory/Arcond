@@ -1,0 +1,338 @@
+#!/bin/bash
+#   >> Run a shell script. Usage: arc_exe -i script.sh
+
+# This code is licensed under the GNU General Public License (GPL) version 3 
+# see doc/ for details 
+# Copyright (c) 2008 by S.Chekanov (chakanau@hep.anl.gov). 
+# All rights reserved.
+
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+
+
+__version__ = 'Arcond 1.0'
+__author__  = 'Sergei Chekanov  (chakanau@hep.anl.gov)'
+__doc__     = 'For details see doc'
+
+
+# set reponse time for all nodes to 2 min (120 sec)
+RESPONSE_TIME=220
+
+TMPclean=True 
+
+
+import os,sys,re,shutil
+import time, glob
+import getopt
+from arcondtools.initialize import *
+
+term = TerminalController()
+
+def usage():
+    print "USAGE:" 
+    print "arcond -i input.sh             # run shell script on each available node"
+    print "arcond --input input.sh        # as above"
+    print "arcond -h                      # show help"
+    print "arcond --help                  # as above"
+    print "arcond -v                      # run in verbose mode with detailed debugging information"
+
+
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "hi:v", ["help", "input"])
+except getopt.GetoptError, err:
+        print term.render('${RED}ERROR: Option is not recognized${NORMAL}')
+        usage()
+        sys.exit(2)
+
+# input configuration  
+input=None
+
+# set true for debugging
+DEBUG=False
+
+
+for o, a in opts:
+        if o == "-v":
+            DEBUG = True
+        elif o in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif o in ("-i", "--input"):
+            input = a
+        else:
+            assert False, "unhandled option"
+
+if input == None:
+         print term.render('${RED}Unhandled  option${NORMAL}')
+         print term.render('${RED}Run arc_exe -h for help${NORMAL}')
+         sys.exit()
+
+ARCOND_SYS=''
+if os.environ['ARCOND_SYS']:
+   ARCOND_SYS=os.environ['ARCOND_SYS']
+else:
+     print term.render('${RED}ERROR: ARCOND_SYS is not defined${NORMAL}')
+     sys.exit(2)
+
+
+iscondor=os.system('which condor > /dev/null 2>&1')
+if iscondor>0:
+  print term.render('${RED}ERROR: CONDOR is not set ${NORMAL}')
+  print term.render('${RED}SOLUTION:setup condor or grid OSG software${NORMAL}')
+  sys.exit(1);
+
+
+PWDdir="";
+f = os.popen("pwd", "r")
+for l in f.xreadlines():
+       l=l.strip()
+       PWDdir=l;
+       break;
+
+
+# now check version 
+# error_ver=checkversion(term,PWDdir,DEBUG)
+# if (error_ver >0):
+#          print term.render('${RED}Too old version of ArCond${NORMAL}')
+#          print term.render('${RED}Update is available. Please download and install a new version${NORMAL}')
+#          sys.exit(1);
+
+   
+
+#=========================
+def Create_SubmitScript(Name,JobNumber):
+#=========================
+  if (DEBUG): print '\n   [1] Creating submit script for  --> %s',Name
+
+  ff=SubDir+'/submit'+str(JobNumber)+'.sh'
+  input=open( ARCOND_SYS+'/etc/arcond/share/submit_BASIC.sh', 'r' )
+  output=open( ff, 'w')
+
+  # remove "hep.anl.gov" from the node.
+  # we do not need it as submission was defined for
+  # atlas16, atlas16 etc
+  for s in input.xreadlines():
+        output.write(s.replace('XXsiteXX',Name))
+  #-- Make shell script executable
+  os.chmod( ff, 0755 )
+  input.close()
+  output.close()
+############### end of Create_SubmitScript() ##############   
+
+
+
+#=========================
+def Create_ExecuteScript(FileName):
+#=========================
+  if (DEBUG): print '\n     [2] Creating submit script for  --> %s',FileName
+
+  ff=SubDir+'/ShellScript.sh'
+  input=open( FileName, 'r' )
+  output=open( ff, 'w')
+
+  # remove "hep.anl.gov" from the node.
+  # we do not need it as submission was defined for
+  # atlas16, atlas16 etc
+  for s in input.xreadlines():
+        output.write(s.replace('XXsiteXX',FileName))
+  #-- Make shell script executable
+  os.chmod( ff, 0755 )
+  input.close()
+  output.close()
+############### end of Create_SubmitScript() ##############   
+
+
+
+
+
+
+# GET argument
+if len( sys.argv ) < 2:
+  print term.render('${RED}Please specify input file with bash commands to execute ${NORMAL}') 
+  sys.exit(1)
+
+try:
+        about = os.stat(input)
+        if (about<1):
+           print term.render('${RED}Input file exists, but it is empty!${NORMAL}')
+           sys.exit(1)
+except OSError:
+        print term.render('${RED}File does not exist or is not accessible${NORMAL}')
+        sys.exit(1)
+
+
+print term.render('${GREEN}################ ARCOND v1.0 ####################${NORMAL}')
+print term.render('${GREEN}##${NORMAL}${CYAN}                 ANL ASC                     ${NORMAL}${GREEN}##${NORMAL}')   
+print term.render('${GREEN}#################################################${NORMAL}')
+warning=0
+error=0
+
+
+mess='Executing='+input+' from '+PWDdir
+print term.render('${CYAN}'+mess+'${NORMAL}')
+
+# first clear all runs
+JobDir=PWDdir+"/Job/"
+SubDir=PWDdir+"/Job/ExeScript"
+
+
+
+
+# clear directory first   
+if (TMPclean):
+    cmt = 'rm -rf '+ SubDir
+    os.system( cmt )
+
+
+if (DEBUG == True ):
+       print "verbose mode is activated for debugging!"
+
+
+
+
+
+# check the job directory
+if not os.path.isdir(JobDir):
+    if (DEBUG): print "---> Directory=",JobDir,' does not exits. Create it!' 
+    os.mkdir(JobDir)
+
+# check the job directory
+if not os.path.isdir(SubDir):
+    if (DEBUG): print "---> Directory=",SubDir,' does not exits. Create it!'
+    os.mkdir(SubDir)
+
+
+# move submission script
+shutil.copyfile(ARCOND_SYS+'/etc/arcond/share/submit_job.sh', SubDir+"/submit_job.sh");
+os.chmod( SubDir+"/submit_job.sh", 0755 )
+
+
+
+# move execution script
+Create_ExecuteScript(input)
+
+  
+N_PC=1
+lpat=[]
+for  l  in os.listdir(PWDdir+"/patterns"):
+        l=l.strip()
+        if not l.endswith(".cmd"):  continue
+        l=l.replace('.cmd','')
+        l=l.replace('schema.site.','')
+        Create_SubmitScript(l, N_PC)
+        N_PC=N_PC+1 
+        lpat.append(l)
+
+## submision
+N_PC=1
+import commands
+for i in range(len(lpat)):
+        ff='./submit'+str(N_PC)+'.sh'
+        cmt = 'cd '+SubDir+'; '+ff+'; cd '+PWDdir
+        if (DEBUG):
+              os.system( cmt ) 
+        else:
+              sout=commands.getoutput(cmt) 
+        N_PC=N_PC+1
+
+
+if (DEBUG): print  lpat  
+
+# wait for 0.5 sec
+time.sleep( 0.5 )
+
+# list directories
+subdir=[]
+for f in os.listdir(SubDir): 
+     if os.path.isdir(os.path.join(SubDir, f)):
+                   subdir.append (f)
+                   ff=f.replace('Job.ShellScript.','');
+                   inx=ff.find ( '.' )
+                   if (inx>0):
+                           ff=ff[0:inx] 
+                   print ff+' <-requested' 
+
+if (DEBUG): print subdir
+
+SEC_TIC=2
+N_LOOPS=RESPONSE_TIME / SEC_TIC
+fready=[]
+warning=0
+
+
+
+print ' '
+
+start_time=time.time() # "seconds since 1/1/1970 00:00:00"
+
+
+kk=0
+for i in range(N_LOOPS):
+ time.sleep( SEC_TIC )
+ if (DEBUG): print 'Starting loop=',i, ' No of directories=',len(subdir)
+ 
+ 
+ for k in range(len(fready)):
+       subdir.remove( fready[k]  )
+ if (DEBUG): print '    -- after removal =',len(subdir)
+ if len(subdir) == 0: 
+            TMPclean=True
+            break
+
+
+ fready=[]
+ for j in range(len(subdir)):
+      f=SubDir+'/'+subdir[j]+'/job.local.out'
+      try:
+        about = os.stat(f)
+        if (about[6]<2):
+              continue;
+      except OSError:
+           continue;
+
+      if (DEBUG): print "Show file="+f
+      if (DEBUG): print "  -- bites=", about[6]
+
+      # analysed 
+      fready.append(subdir[j]);
+      ff=subdir[j].replace('Job.ShellScript.','');
+      inx=ff.find ( '.' )
+      if (inx>0):
+              ff=ff[0:inx]
+      end_time=time.time()
+      responce=int(end_time - start_time) 
+      print " "
+      tt='Responded='+ff+' after '+str(responce)+' sec :'
+      print term.render('${CYAN} --- '+tt+' ---- ${NORMAL}')
+
+      # cmt = 'cat '+ f 
+      # os.system( cmt )
+       #
+      try:
+        fin = open(f, "r")
+        str3 = fin.read()
+        fin.close()
+        print str3
+      except IOError:
+        print "File %s does not exist!" % f
+
+
+ kk=kk+1
+ if (kk >= N_LOOPS-1) :
+      print term.render('${YELLOW} WARNING: Cannot process all computer notes!  ${NORMAL}')
+      print term.render('${YELLOW}  --> It is likely that the response time for some PC node is too slow. ${NORMAL}')
+      print term.render('${YELLOW}  --> Check this using \"condor_q\"  ${NORMAL}')
+      print term.render('${YELLOW}  --> If there are jobs in \"Idle\" state, remove these PCs from the node or fix them ${NORMAL}')
+      print term.render('${YELLOW}  --> One can also increase response time \'RESPONSE_TIME\' ${NORMAL}')
+      print term.render('${YELLOW}  --> The database will not be complete: data on this node will not be processed ${NORMAL}')
+      print term.render('${YELLOW}  --> Arcond will continue at this point, but without this problematic node. ${NORMAL}')
+      warning=1
+
+
+ 
+if (TMPclean):
+    cmt = 'rm -rf '+ SubDir
+    os.system( cmt )
+

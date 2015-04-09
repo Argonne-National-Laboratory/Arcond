@@ -1,0 +1,67 @@
+8
+
+dir
+2180
+https://svn.usatlas.bnl.gov/svn/panda/panda-client/tags/0.1.19/share
+https://svn.usatlas.bnl.gov/svn/panda
+
+
+
+2009-02-02T19:48:17.484249Z
+2050
+/DC=org/DC=doegrids/OU=People/CN=Tadashi Maeno 199576
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+d4488797-78bc-619e-cc48-e4164af92aee
+
+FakeAppMgr.py
+file
+
+
+
+
+2009-02-23T20:42:40.000000Z
+40bdad03b6d2f23d73a1237c4ede2d40
+2009-01-13T19:42:09.421590Z
+1969
+/DC=org/DC=doegrids/OU=People/CN=Tadashi Maeno 199576
+has-props
+
+ConfigExtractor.py
+file
+
+
+
+
+2009-02-23T20:42:40.000000Z
+0a759bae74abe5dd11712b3b6bf3add6
+2009-02-02T19:48:17.484249Z
+2050
+/DC=org/DC=doegrids/OU=People/CN=Tadashi Maeno 199576
+has-props
+
+extPoolRefs.C
+file
+
+
+
+
+2009-02-23T20:42:40.000000Z
+44551ec73e8f699c8236c67d103955d0
+2009-01-13T19:42:09.421590Z
+1969
+/DC=org/DC=doegrids/OU=People/CN=Tadashi Maeno 199576
+has-props
+
