@@ -7,9 +7,14 @@ ArCond is a front-end of the Condor batch system. The main advantage of the ArCo
 
 Using ArCond, any custom shell command (or a command sequence) defined in a submission script can be executed in parallel. For example, one can run multiple athena option files, perform user-specific tests, file merging etc. directly on the Linux boxes. Also, one can run any custom program defined in a shell script. In addition:
 
-    ArCond has a perfect debugging, which allows to check and resubmit jobs for a particular node, or even run failed jobs on the same node where they fail.
-    Combines and merge outputs.
-    Contains tools for administrators which allow to monitor a small cluster via ssh tunneling, redistribute data uniformly between different cluster nodes, run any shell command on all cluster nodes.
-    Infinitely scalable (since network is not used at runtime) 
+ArCond has a perfect debugging, which allows to check and resubmit jobs for a particular node, or even run failed jobs on the same node where they fail.
+Arcond can combine and merge outputs, 
+contains tools for administrators which allow to monitor a small cluster via ssh tunneling, 
+redistribute data uniformly between different cluster nodes, run any shell command on all cluster nodes, and it is scalable (since network is not used at runtime).  
 
-Presently, the ArCond program is used at ANL to process terabytes of data on a daily basis, to generate Monte Carlo models, NLO QCD calculations and more. All of this is done using relatively small Tier3 resources (20%FTE, a few computer boxes). 
+ArCond program was used at ANL-HEP in 2008-2015 to process terabytes of data 
+from the LHC experiments (ATLAS) 
+on a daily basis, to generate Monte Carlo models, NLO QCD calculations and more. 
+All of this is done using relatively small Tier3 resources.
+
+S.Chekanov (ANL) 
